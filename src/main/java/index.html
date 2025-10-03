@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="zh">
+<head>
+    <meta charset="utf-8" />
+    <title>角色语音对话 Demo</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:#f6f7fb;margin:0}
+        .wrap{max-width:1000px;margin:0 auto;padding:18px}
+        .grid{display:grid;grid-template-columns:1fr 2fr;gap:16px}
+        .card{background:#fff;border-radius:16px;box-shadow:0 8px 28px rgba(0,0,0,.06);padding:14px}
+        .title{font-size:18px;margin:0 0 10px}
+        .roles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;max-height:45vh;overflow:auto}
+        .role{border:1px solid #e6e6e6;border-radius:12px;padding:10px;cursor:pointer}
+        .role.sel{border-color:#1d7dfa;box-shadow:0 0 0 3px rgba(29,125,250,.12)}
+        .role h4{margin:0 0 6px}
+        .role .tag{display:inline-block;background:#eef5ff;color:#1d7dfa;border-radius:8px;padding:2px 6px;margin-right:6px;font-size:12px}
+        .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+        .row > *{flex:1}
+        select,input[type=range]{width:100%}
+        .btn{border:0;border-radius:10px;padding:8px 12px;background:#1d7dfa;color:#fff;cursor:pointer}
+        .btn.sec{background:#10b981}
+        .btn.dang{background:#ef4444}
+        .chat{height:58vh;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:8px;background:#fff;border-radius:12px;border:1px solid #eee}
+        .bubble{max-width:70%;padding:10px 12px;border-radius:12px;line-height:1.5;white-space:pre-wrap}
+        .me{align-self:flex-end;background:#d9f2ff;border-top-right-radius:4px}
+        .bot{align-self:flex-start;background:#f0f0f0;border-top-left-radius:4px}
+        .md h1,.md h2{margin:6px 0}.md ul{margin:6px 0 6px 20px}.md code{background:#eee;border-radius:4px;padding:0 4px}
+        .toolbar{display:flex;gap:8px;margin-top:8px}
+        .toolbar input{flex:1;padding:10px;border-radius:10px;border:1px solid #dcdcdc}
+        .small{font-size:12px;color:#666}
+        .sticky{position:sticky;top:8px;z-index:2;background:#fff;border-radius:12px;padding:8px;border:1px solid #eee}
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h2 style="margin:6px 0 12px">角色语音对话 Demo</h2>
+    <div class="grid">
+        <!-- 左侧：角色 & 音色 -->
+        <div class="card">
+            <div class="sticky">
+                <div class="row">
+                    <input id="q" placeholder="搜索角色名称或标签…" />
+                    <button class="btn" id="refresh">刷新</button>
+                </div>
+            </div>
+            <h3 class="title">角色</h3>
+            <div id="roles" class="roles"></div>
+            <hr/>
+            <h3 class="title">音色设置</h3>
+            <div class="row">
+                <select id="voice">
+                    <!-- 常用中文音色（含不同口音/地区） -->
+                    <optgroup label="中文-内地 (zh-CN)">
+                        <option>zh-CN-XiaoxiaoNeural</option>
+                        <option>zh-CN-XiaoyiNeural</option>
+                        <option selected>zh-CN-YunzeNeural</option>
+                        <option>zh-CN-YunxiNeural</option>
+                        <option>zh-CN-YunyangNeural</option>
+                    </optgroup>
+                    <optgroup label="中文-香港 (zh-HK)">
+                        <option>zh-HK-HiuMaanNeural</option>
+                        <option>zh-HK-HiuGaaiNeural</option>
+                    </optgroup>
+                    <optgroup label="中文-台湾 (zh-TW)">
+                        <option>zh-TW-HsiaoChenNeural</option>
+                        <option>zh-TW-HsiaoYuNeural</option>
+                    </optgroup>
+                </select>
+            </div>
+            <div class="row">
+                <label style="flex:0 0 80px">语速</label>
+                <input id="rate" type="range" min="-30" max="30" value="0" />
+                <span id="rateV" style="flex:0 0 48px;text-align:right">+0%</span>
+            </div>
+            <div class="row">
+                <label style="flex:0 0 80px">音量</label>
+                <input id="volume" type="range" min="-20" max="20" value="0" />
+                <span id="volV" style="flex:0 0 48px;text-align:right">+0%</span>
+            </div>
+            <div class="row">
+                <button class="btn sec" id="preview">🔊 预听音色</button>
+                <button class="btn dang" id="resetVoice">重置为角色默认</button>
+            </div>
+            <div class="small">提示：口音更多取决于<em>地区音色</em>（内地/台湾/香港）；想更“少年感”可试 Yunze / 更成熟用 Yunxi / 叙事感用 Yunyang。</div>
+        </div>
+
+        <!-- 右侧：对话 -->
+        <div class="card">
+            <div id="chat" class="chat"></div>
+            <div class="toolbar">
+                <input id="text" placeholder="输入文字，或点麦克风录音…" />
+                <button class="btn" id="send">发送</button>
+                <button class="btn sec" id="mic">🎤 录音</button>
+                <button class="btn dang" id="clear">清空会话</button>
+            </div>
+            <div class="small">当前角色：<span id="curRole">（未选择）</span> ｜ 会话 id 即角色 id（用于上下文记忆）</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // === 配置 ===
+    const API_BASE = "http://127.0.0.1:8080"; // Java
+    const TTS_BASE = "http://127.0.0.1:5002"; // 仅用于预听
+    let ROLE_ID = null;
+    let ROLE_DEFAULTS = { voice: "zh-CN-XiaoxiaoNeural", rate:"+0%", volume:"+0%" };
+
+    // === 工具 ===
+    const chat = document.getElementById('chat');
+    function addBubble(html, who='bot', audioUrl=null) {
+        const div = document.createElement('div');
+        div.className = 'bubble ' + (who==='me'?'me':'bot');
+        const content = document.createElement('div');
+        content.className = 'md';
+        content.innerHTML = html;
+        div.appendChild(content);
+        if (audioUrl) {
+            const a = document.createElement('audio');
+            a.controls = true; a.autoplay = true; a.src = audioUrl;
+            div.appendChild(a);
+        }
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+    }
+    function percent(n){ return (n>=0?`+${n}`:String(n)) + "%"; }
+
+    // === 角色 ===
+    const rolesDiv = document.getElementById('roles');
+    const q = document.getElementById('q');
+    const curRole = document.getElementById('curRole');
+    async function loadRoles() {
+        const res = await fetch(`${API_BASE}/api/role`);
+        const list = await res.json();
+        renderRoles(list);
+        window._roles = list;
+    }
+    function renderRoles(list) {
+        const kw = (q.value||"").trim().toLowerCase();
+        const f = list.filter(r=>{
+            const txt = (r.name+" "+(r.tags||[]).join(" ")).toLowerCase();
+            return !kw || txt.includes(kw);
+        });
+        rolesDiv.innerHTML = "";
+        f.forEach(r=>{
+            const d = document.createElement('div');
+            d.className = 'role'; d.onclick = ()=> selectRole(r);
+            d.innerHTML = `<h4>${r.name}</h4><div>${(r.tags||[]).map(t=>`<span class="tag">${t}</span>`).join("")}</div>`;
+            if (ROLE_ID===r.id) d.classList.add('sel');
+            rolesDiv.appendChild(d);
+        });
+    }
+    function selectRole(r){
+        ROLE_ID = r.id;
+        ROLE_DEFAULTS.voice  = r.voice  || "zh-CN-XiaoxiaoNeural";
+        ROLE_DEFAULTS.rate   = r.rate   || "+0%";
+        ROLE_DEFAULTS.volume = r.volume || "+0%";
+        // 同步到 UI（不强制覆盖自定义）
+        if (!customVoiceSet){
+            voiceSel.value = ROLE_DEFAULTS.voice;
+            rate.value = parseInt((ROLE_DEFAULTS.rate||"+0%").replace("%",""));
+            volume.value = parseInt((ROLE_DEFAULTS.volume||"+0%").replace("%",""));
+            rateV.textContent = ROLE_DEFAULTS.rate;
+            volV.textContent = ROLE_DEFAULTS.volume;
+        }
+        document.querySelectorAll('.role').forEach(x=>x.classList.remove('sel'));
+        // 在渲染后再高亮
+        renderRoles(window._roles||[]);
+        [...rolesDiv.children].forEach(card=>{
+            if (card.querySelector('h4').textContent === r.name) card.classList.add('sel');
+        });
+        curRole.textContent = r.name;
+        addBubble(`已切换到 <b>${r.name}</b>，可以开始对话。`, 'bot');
+    }
+    document.getElementById('refresh').onclick = loadRoles;
+    q.oninput = ()=> renderRoles(window._roles||[]);
+
+    // === 音色 ===
+    const voiceSel = document.getElementById('voice');
+    const rate = document.getElementById('rate');
+    const rateV = document.getElementById('rateV');
+    const volume = document.getElementById('volume');
+    const volV = document.getElementById('volV');
+    let customVoiceSet = false;
+    rate.oninput = ()=> rateV.textContent = percent(parseInt(rate.value));
+    volume.oninput = ()=> volV.textContent = percent(parseInt(volume.value));
+    voiceSel.onchange = ()=> { customVoiceSet = true; };
+
+    document.getElementById('resetVoice').onclick = ()=>{
+        customVoiceSet = false;
+        voiceSel.value = ROLE_DEFAULTS.voice;
+        rate.value = parseInt((ROLE_DEFAULTS.rate||"+0%").replace("%",""));
+        volume.value = parseInt((ROLE_DEFAULTS.volume||"+0%").replace("%",""));
+        rateV.textContent = ROLE_DEFAULTS.rate;
+        volV.textContent = ROLE_DEFAULTS.volume;
+    };
+
+    // 预听音色（只走 TTS，不走 LLM）
+    document.getElementById('preview').onclick = async ()=>{
+        const text = "你好，这是音色预听效果。";
+        const body = {
+            text,
+            voice: voiceSel.value,
+            rate: percent(parseInt(rate.value)),
+            volume: percent(parseInt(volume.value))
+        };
+        const res = await fetch(`${TTS_BASE}/tts_url`,{
+            method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.url){
+            addBubble("（预听）"+text,'bot', `${TTS_BASE}${data.url}`);
+        }
+    };
+
+    // === 聊天 ===
+    const text = document.getElementById('text');
+    const send = document.getElementById('send');
+    function currentVoiceParams(){
+        return {
+            ttsVoice:  voiceSel.value,
+            ttsRate:   percent(parseInt(rate.value)),
+            ttsVolume: percent(parseInt(volume.value))
+        };
+    }
+    async function sendText(){
+        if (!ROLE_ID){ alert("请先在左侧选择一个角色"); return; }
+        const val = text.value.trim();
+        if (!val) return;
+        addBubble(marked.parse(val),'me');
+        text.value = "";
+        const qs = new URLSearchParams({ text: val, ...currentVoiceParams() }).toString();
+        const url = `${API_BASE}/api/character/${ROLE_ID}/chat?`+qs;
+        const res = await fetch(url, { method:'POST', headers:{'Accept':'application/json'} });
+        const data = await res.json();
+        addBubble(marked.parse(data.replyText || "(无回复)"), 'bot', data.audioUrl || null);
+    }
+    send.onclick = sendText;
+    text.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendText(); } });
+
+    // 录音上传
+    const mic = document.getElementById('mic');
+    let mediaRecorder, chunks=[];
+    mic.onclick = async ()=>{
+        if (!ROLE_ID){ alert("请先选择角色"); return; }
+        if (!mediaRecorder || mediaRecorder.state==='inactive'){
+            try{
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                chunks=[];
+                mediaRecorder.ondataavailable = e=>{ if(e.data.size>0) chunks.push(e.data); };
+                mediaRecorder.onstop = async ()=>{
+                    const blob = new Blob(chunks,{type:'audio/webm'});
+                    const file = new File([blob], 'record.webm', {type:'audio/webm'});
+                    addBubble('(发送语音中…)','me');
+
+                    const fd = new FormData();
+                    fd.append('user_audio', file);
+                    const qp = new URLSearchParams(currentVoiceParams()).toString();
+                    const url = `${API_BASE}/api/character/${ROLE_ID}/chat?${qp}`;
+                    const res = await fetch(url, { method:'POST', body: fd, headers:{'Accept':'application/json'} });
+                    const data = await res.json();
+                    addBubble(marked.parse(data.userText || '(未识别到语音)'), 'me');
+                    addBubble(marked.parse(data.replyText || '(无回复)'), 'bot', data.audioUrl || null);
+                };
+                mediaRecorder.start();
+                mic.textContent = "■ 停止";
+            }catch(err){ alert('无法访问麦克风：'+err.message); }
+        }else{
+            mediaRecorder.stop();
+            mic.textContent = "🎤 录音";
+        }
+    };
+
+    // 清空会话
+    document.getElementById('clear').onclick = async ()=>{
+        if (!ROLE_ID){ return; }
+        await fetch(`${API_BASE}/api/character/${ROLE_ID}/chat/history`,{method:'DELETE'});
+        addBubble('会话已清空。','bot');
+    };
+
+    // 初始化
+    loadRoles();
+</script>
+</body>
+</html>
